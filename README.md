@@ -28,7 +28,6 @@ Modern, güvenli ve gerçek zamanlı bir mesajlaşma uygulaması. Bu proje; Flut
 Aşağıdaki şema, uygulamanın temel çalışma mantığını göstermektedir:
 
 ```
-graph TD
     A["Kullanıcı"] -->|"Kayıt Ol / Giriş Yap"| B["Supabase Auth"]
 
     B -->|"Başarılı Giriş"| C{"Kullanıcı Doğrulandı mı?"}
