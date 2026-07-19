@@ -1,12 +1,13 @@
 # 💬 MyOwnChatApplication - Flutter
 
-Modern, güvenli ve gerçek zamanlı bir mesajlaşma uygulaması. Bu proje; Flutter'ın gücü, **Supabase**'in kimlik doğrulama altyapısı ve **Sendbird**'ün anlık mesajlaşma yetenekleri birleştirilerek geliştirilmiştir.
+Modern, güvenli ve gerçek zamanlı bir mesajlaşma uygulaması. Bu proje; Flutter'ın gücü, **Supabase**'in kimlik doğrulama altyapısı, **Sendbird**'ün anlık mesajlaşma yetenekleri ve **Brevo**'nun e-posta bildirim altyapısı birleştirilerek geliştirilmiştir.
 
 ## 🚀 Özellikler
 
 - 🔐 **Güvenli Kimlik Doğrulama:** Supabase üzerinden şifreli Email/Şifre ile kayıt olma ve giriş yapma.
 - ⚡ **Hızlı Giriş (Quick Login):** Yerel hesapları güvenle saklayarak (Secure Storage & Sqflite) hesaplar arası tek tıkla geçiş yapabilme.
 - 💬 **Gerçek Zamanlı Sohbet:** Sendbird Chat SDK kullanılarak anlık birebir ve grup mesajlaşma yeteneği.
+- 📧 **E-Posta Gönderimi:** Brevo kullanılarak kullanıcı doğrulama, şifre sıfırlama veya bildirim e-postalarının yönetimi.
 - 🎨 **Modern ve Şık Arayüz:** Kullanıcı dostu, animasyonlu ve "vivid" renk paletine sahip özel tasarım.
 - 🛡️ **Güvenlik Odaklı:** Hassas API anahtarları `.env` üzerinden yönetilir ve Git geçmişine sızması engellenir.
 
@@ -15,15 +16,36 @@ Modern, güvenli ve gerçek zamanlı bir mesajlaşma uygulaması. Bu proje; Flut
 ## 🛠️ Kullanılan Teknolojiler
 
 - **[Flutter](https://flutter.dev/):** Çapraz platform arayüz geliştirme çerçevesi.
-- **[Supabase](https://supabase.com/):** Açık kaynak Firebase alternatifi (Backend ve Kimlik Doğrulama).
+- **[Supabase](https://supabase.com/):** Açık kaynak Firebase alternatifi (Backend, Veritabanı ve Kimlik Doğrulama).
 - **[Sendbird](https://sendbird.com/):** Gelişmiş In-App Chat SDK.
+- **[Brevo (eski adıyla Sendinblue)](https://www.brevo.com/):** E-posta gönderim sistemi için.
 - **Güvenlik & Yerel Depolama:** `flutter_secure_storage`, `sqflite`, `flutter_dotenv`
+
+---
+
+## 🔄 Akış Şeması (Flow Chart)
+
+Aşağıdaki şema, uygulamanın temel çalışma mantığını göstermektedir:
+
+```mermaid
+graph TD
+    A[Kullanıcı] -->|Kayıt Ol / Giriş Yap| B(Supabase Auth)
+    B -->|Başarılı Giriş| C{Kullanıcı Doğrulandı mı?}
+    C -->|Evet| D[Sendbird'e Bağlan]
+    C -->|Hayır| E[Brevo ile Doğrulama E-postası Gönder]
+    E --> A
+    D --> F[Sohbet Ekranı]
+    F -->|Mesaj Gönder / Al| G(Sendbird Sunucuları)
+    G -->|Gerçek Zamanlı Veri| F
+    F -->|Geçmiş Hesapları Yönet| H(Yerel Veritabanı - Sqflite)
+    H -->|Hızlı Geçiş (Quick Login)| B
+```
 
 ---
 
 ## ⚙️ Kurulum ve Çalıştırma
 
-Projeyi kendi bilgisayarınızda çalıştırmak için aşağıdaki adımları izleyin:
+Projenin yerel ortamınızda çalışması için aşağıdaki adımları izleyin:
 
 ### 1. Depoyu Klonlayın
 ```bash
@@ -43,6 +65,7 @@ SUPABASE_URL=https://sizin_supabase_url_adresiniz.supabase.co
 SUPABASE_ANON_KEY=sizin_supabase_anon_key_degeriniz
 SENDBIRD_APP_ID=sizin_sendbird_app_id_degeriniz
 ```
+"Not: E-posta gönderimi (Brevo) için Supabase paneli üzerinden kendi SMTP ayarlarınızı yapılandırmanız gerekmektedir. Brevo hesabınızda SMTP anahtarları (API Keys) oluştururken hesap güvenliğinize azami özen gösterin; İki Faktörlü Doğrulama (2FA) kullanın ve şifre/anahtar bilgilerinizi asla yetkisiz kişilerle paylaşmayın."
 
 ### 4. Uygulamayı Çalıştırın
 ```bash
