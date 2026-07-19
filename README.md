@@ -27,19 +27,23 @@ Modern, güvenli ve gerçek zamanlı bir mesajlaşma uygulaması. Bu proje; Flut
 
 Aşağıdaki şema, uygulamanın temel çalışma mantığını göstermektedir:
 
-```mermaid
 graph TD
-    A[Kullanıcı] -->|Kayıt Ol / Giriş Yap| B(Supabase Auth)
-    B -->|Başarılı Giriş| C{Kullanıcı Doğrulandı mı?}
-    C -->|Evet| D[Sendbird'e Bağlan]
-    C -->|Hayır| E[Brevo ile Doğrulama E-postası Gönder]
+    A["Kullanıcı"] -->|"Kayıt Ol / Giriş Yap"| B["Supabase Auth"]
+
+    B -->|"Başarılı Giriş"| C{"Kullanıcı Doğrulandı mı?"}
+
+    C -->|"Evet"| D["Sendbird'e Bağlan"]
+    C -->|"Hayır"| E["Brevo ile Doğrulama E-postası Gönder"]
+
     E --> A
-    D --> F[Sohbet Ekranı]
-    F -->|Mesaj Gönder / Al| G(Sendbird Sunucuları)
-    G -->|Gerçek Zamanlı Veri| F
-    F -->|Geçmiş Hesapları Yönet| H(Yerel Veritabanı - Sqflite)
-    H -->|Hızlı Geçiş (Quick Login)| B
-```
+
+    D --> F["Sohbet Ekranı"]
+
+    F -->|"Mesaj Gönder / Al"| G["Sendbird Sunucuları"]
+    G -->|"Gerçek Zamanlı Veri"| F
+
+    F -->|"Geçmiş Hesapları Yönet"| H["Yerel Veritabanı (Sqflite)"]
+    H -->|"Hızlı Geçiş (Quick Login)"| B
 
 ---
 
