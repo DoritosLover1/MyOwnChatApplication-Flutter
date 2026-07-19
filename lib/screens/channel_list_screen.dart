@@ -45,9 +45,27 @@ class _ChannelListScreenState extends State<ChannelListScreen>
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Konuşmalar yüklenemedi.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: const [
+              Icon(Icons.wifi_off_rounded, color: Colors.white),
+              SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Konuşmalar yüklenemedi. Bağlantınızı kontrol edin.',
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+          elevation: 8,
+        ),
+      );
     }
   }
 
@@ -254,6 +272,39 @@ class _ChannelListScreenState extends State<ChannelListScreen>
     );
   }
 
+  String _getChannelDisplayName(GroupChannel channel) {
+    if (channel.name.isNotEmpty && channel.name != 'Group Channel') {
+      return channel.name;
+    }
+    
+    final currentUser = SendbirdChat.currentUser;
+    if (currentUser != null) {
+      final otherMembers = channel.members.where((m) => m.userId != currentUser.userId).toList();
+      if (otherMembers.isNotEmpty) {
+        return otherMembers.map((m) => m.nickname.isNotEmpty ? m.nickname : m.userId).join(', ');
+      }
+    }
+    
+    return 'Sohbet';
+  }
+
+  String _getChannelCoverUrl(GroupChannel channel) {
+    if (channel.coverUrl.isNotEmpty) {
+      return channel.coverUrl;
+    }
+
+    final currentUser = SendbirdChat.currentUser;
+    if (currentUser != null && channel.members.length == 2) {
+      final otherMember = channel.members.firstWhere(
+        (m) => m.userId != currentUser.userId,
+        orElse: () => channel.members.first,
+      );
+      return otherMember.profileUrl;
+    }
+    
+    return '';
+  }
+
   Widget _buildChannelTile(GroupChannel channel) {
     final unreadCount = channel.unreadMessageCount;
     final lastMessage = channel.lastMessage;
@@ -263,6 +314,9 @@ class _ChannelListScreenState extends State<ChannelListScreen>
     } else if (lastMessage is FileMessage) {
       subtitle = '📎 Dosya';
     }
+
+    final displayName = _getChannelDisplayName(channel);
+    final coverUrl = _getChannelCoverUrl(channel);
 
     return InkWell(
       onTap: () {
@@ -280,13 +334,13 @@ class _ChannelListScreenState extends State<ChannelListScreen>
             CircleAvatar(
               radius: 26,
               backgroundColor: AppColors.surfaceContainer,
-              backgroundImage: channel.coverUrl.isNotEmpty
-                  ? NetworkImage(channel.coverUrl)
+              backgroundImage: coverUrl.isNotEmpty
+                  ? NetworkImage(coverUrl)
                   : null,
-              child: channel.coverUrl.isEmpty
+              child: coverUrl.isEmpty
                   ? Text(
-                      channel.name.isNotEmpty
-                          ? channel.name[0].toUpperCase()
+                      displayName.isNotEmpty
+                          ? displayName[0].toUpperCase()
                           : '?',
                       style: const TextStyle(
                         color: AppColors.primary,
@@ -302,7 +356,7 @@ class _ChannelListScreenState extends State<ChannelListScreen>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    channel.name.isNotEmpty ? channel.name : 'İsimsiz sohbet',
+                    displayName,
                     style: TextStyle(
                       fontWeight: unreadCount > 0
                           ? FontWeight.w700

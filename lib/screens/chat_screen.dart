@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:sendbird_chat_sdk/sendbird_chat_sdk.dart';
 import '../theme/app_colors.dart';
@@ -77,8 +79,6 @@ class _ChatScreenState extends State<ChatScreen>
     );
   }
 
-  // ---- MessageCollectionHandler metodları ----
-
   @override
   void onMessagesAdded(
     MessageContext context,
@@ -132,8 +132,6 @@ class _ChatScreenState extends State<ChatScreen>
   @override
   void onHugeGapDetected() {}
 
-  // ---- UI ----
-
   @override
   void dispose() {
     _collection?.dispose();
@@ -149,36 +147,102 @@ class _ChatScreenState extends State<ChatScreen>
     return '$h:$m';
   }
 
+  Future<void> _pickAndSendFile() async {
+    if (_channel == null) return;
+    try {
+      final result = await FilePicker.pickFiles();
+      if (result != null && result.files.single.path != null) {
+        final file = File(result.files.single.path!);
+        final params = FileMessageCreateParams.withFile(
+          file,
+          fileName: result.files.single.name,
+        );
+
+        _channel!.sendFileMessage(
+          params,
+          handler: (message, error) {
+            if (error != null) {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Dosya gönderilemedi: ${error.message}'),
+                  ),
+                );
+              }
+            }
+          },
+        );
+      }
+    } catch (e) {
+      debugPrint('Dosya seçme hatası: $e');
+    }
+  }
+
+  String _getChannelDisplayName(GroupChannel? channel) {
+    if (channel == null) return 'Sohbet';
+    if (channel.name.isNotEmpty && channel.name != 'Group Channel') {
+      return channel.name;
+    }
+
+    final currentUser = SendbirdChat.currentUser;
+    if (currentUser != null) {
+      final otherMembers = channel.members
+          .where((m) => m.userId != currentUser.userId)
+          .toList();
+      if (otherMembers.isNotEmpty) {
+        return otherMembers
+            .map((m) => m.nickname.isNotEmpty ? m.nickname : m.userId)
+            .join(', ');
+      }
+    }
+    return 'Sohbet';
+  }
+
+  String _getChannelCoverUrl(GroupChannel? channel) {
+    if (channel == null) return '';
+    if (channel.coverUrl.isNotEmpty) {
+      return channel.coverUrl;
+    }
+
+    final currentUser = SendbirdChat.currentUser;
+    if (currentUser != null && channel.members.length == 2) {
+      final otherMember = channel.members.firstWhere(
+        (m) => m.userId != currentUser.userId,
+        orElse: () => channel.members.first,
+      );
+      return otherMember.profileUrl;
+    }
+    return '';
+  }
+
   @override
   Widget build(BuildContext context) {
-    if (_loading) {
-      return const Scaffold(
-        backgroundColor: AppColors.background,
-        body: Center(
-          child: CircularProgressIndicator(color: AppColors.primary),
-        ),
-      );
-    }
+    final displayName = _getChannelDisplayName(_channel);
+    final coverUrl = _getChannelCoverUrl(_channel);
 
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(gradient: AppColors.primaryGradient),
+        ),
+        iconTheme: const IconThemeData(color: Colors.white),
         titleSpacing: 0,
         title: Row(
           children: [
             CircleAvatar(
               radius: 18,
-              backgroundColor: AppColors.surfaceContainer,
-              backgroundImage: (_channel?.coverUrl.isNotEmpty ?? false)
-                  ? NetworkImage(_channel!.coverUrl)
+              backgroundColor: Colors.white.withOpacity(0.25),
+              backgroundImage: coverUrl.isNotEmpty
+                  ? NetworkImage(coverUrl)
                   : null,
-              child: (_channel?.coverUrl.isEmpty ?? true)
+              child: coverUrl.isEmpty
                   ? Text(
-                      _channel != null && _channel!.name.isNotEmpty
-                          ? _channel!.name[0].toUpperCase()
+                      displayName.isNotEmpty
+                          ? displayName[0].toUpperCase()
                           : '?',
                       style: const TextStyle(
-                        color: AppColors.primary,
+                        color: Colors.white,
                         fontWeight: FontWeight.w700,
                       ),
                     )
@@ -187,26 +251,26 @@ class _ChatScreenState extends State<ChatScreen>
             const SizedBox(width: 10),
             Expanded(
               child: Text(
-                _channel?.name.isNotEmpty == true ? _channel!.name : 'Sohbet',
+                displayName,
                 style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
-                  color: AppColors.onBackground,
+                  color: Colors.white,
                 ),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
           ],
         ),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Container(color: AppColors.surfaceContainer, height: 1),
-        ),
       ),
       body: Column(
         children: [
           Expanded(
-            child: _messages.isEmpty
+            child: _loading
+                ? const Center(
+                    child: CircularProgressIndicator(color: AppColors.primary),
+                  )
+                : _messages.isEmpty
                 ? const Center(
                     child: Text(
                       'Henüz mesaj yok, ilk mesajı sen gönder 👋',
@@ -223,10 +287,16 @@ class _ChatScreenState extends State<ChatScreen>
                     itemCount: _messages.length,
                     itemBuilder: (context, index) {
                       final msg = _messages[index];
+                      final isMine = msg.sender?.userId == _myUserId;
                       if (msg is UserMessage) {
-                        final isMine = msg.sender?.userId == _myUserId;
                         return _buildBubble(
                           text: msg.message,
+                          time: _formatTime(msg.createdAt),
+                          isMine: isMine,
+                        );
+                      } else if (msg is FileMessage) {
+                        return _buildFileBubble(
+                          fileMessage: msg,
                           time: _formatTime(msg.createdAt),
                           isMine: isMine,
                         );
@@ -255,16 +325,24 @@ class _ChatScreenState extends State<ChatScreen>
         margin: const EdgeInsets.symmetric(vertical: 4),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
-          color: isMine ? AppColors.bubbleOut : AppColors.bubbleIn,
-          borderRadius: BorderRadius.circular(16),
+          gradient: isMine ? AppColors.bubbleOutGradient : null,
+          color: isMine ? null : AppColors.bubbleIn,
+          borderRadius: BorderRadius.only(
+            topLeft: const Radius.circular(16),
+            topRight: const Radius.circular(16),
+            bottomLeft: Radius.circular(isMine ? 16 : 4),
+            bottomRight: Radius.circular(isMine ? 4 : 16),
+          ),
           border: isMine
               ? null
               : Border.all(color: AppColors.bubbleBorder.withOpacity(0.4)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.03),
-              blurRadius: 3,
-              offset: const Offset(0, 1),
+              color: isMine
+                  ? AppColors.primary.withOpacity(0.18)
+                  : Colors.black.withOpacity(0.03),
+              blurRadius: isMine ? 8 : 3,
+              offset: const Offset(0, 2),
             ),
           ],
         ),
@@ -273,16 +351,108 @@ class _ChatScreenState extends State<ChatScreen>
           children: [
             Text(
               text,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 15,
-                color: AppColors.onBackground,
+                color: isMine ? Colors.white : AppColors.onBackground,
                 height: 1.3,
               ),
             ),
             const SizedBox(height: 4),
             Text(
               time,
-              style: TextStyle(fontSize: 11, color: AppColors.outline),
+              style: TextStyle(
+                fontSize: 11,
+                color: isMine
+                    ? Colors.white.withOpacity(0.75)
+                    : AppColors.outline,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFileBubble({
+    required FileMessage fileMessage,
+    required String time,
+    required bool isMine,
+  }) {
+    final isImage = (fileMessage.type ?? '').toLowerCase().startsWith('image/');
+
+    return Align(
+      alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width * 0.75,
+        ),
+        margin: const EdgeInsets.symmetric(vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          gradient: isMine ? AppColors.bubbleOutGradient : null,
+          color: isMine ? null : AppColors.bubbleIn,
+          borderRadius: BorderRadius.only(
+            topLeft: const Radius.circular(16),
+            topRight: const Radius.circular(16),
+            bottomLeft: Radius.circular(isMine ? 16 : 4),
+            bottomRight: Radius.circular(isMine ? 4 : 16),
+          ),
+          border: isMine
+              ? null
+              : Border.all(color: AppColors.bubbleBorder.withOpacity(0.4)),
+          boxShadow: [
+            BoxShadow(
+              color: isMine
+                  ? AppColors.primary.withOpacity(0.18)
+                  : Colors.black.withOpacity(0.03),
+              blurRadius: isMine ? 8 : 3,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            if (isImage)
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.network(
+                  fileMessage.url,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => const Icon(Icons.broken_image),
+                ),
+              )
+            else
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.insert_drive_file,
+                    color: isMine ? Colors.white : AppColors.primary,
+                  ),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      fileMessage.name ?? 'Dosya',
+                      style: TextStyle(
+                        fontSize: 15,
+                        color: isMine ? Colors.white : AppColors.onBackground,
+                        height: 1.3,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            const SizedBox(height: 4),
+            Text(
+              time,
+              style: TextStyle(
+                fontSize: 11,
+                color: isMine
+                    ? Colors.white.withOpacity(0.75)
+                    : AppColors.outline,
+              ),
             ),
           ],
         ),
@@ -301,6 +471,13 @@ class _ChatScreenState extends State<ChatScreen>
         top: false,
         child: Row(
           children: [
+            IconButton(
+              icon: const Icon(
+                Icons.add_photo_alternate_outlined,
+                color: AppColors.primary,
+              ),
+              onPressed: _pickAndSendFile,
+            ),
             Expanded(
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -321,9 +498,11 @@ class _ChatScreenState extends State<ChatScreen>
               ),
             ),
             const SizedBox(width: 8),
-            CircleAvatar(
-              radius: 22,
-              backgroundColor: AppColors.primary,
+            Container(
+              decoration: const BoxDecoration(
+                gradient: AppColors.vividGradient,
+                shape: BoxShape.circle,
+              ),
               child: IconButton(
                 icon: const Icon(Icons.send, color: Colors.white, size: 20),
                 onPressed: _sendMessage,

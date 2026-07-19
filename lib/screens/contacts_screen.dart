@@ -47,7 +47,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
     setState(() => _creating = true);
     try {
       final params = GroupChannelCreateParams()
-        ..userIds = _selectedUserIds.toList()
+        ..userIds = [user.userId]
         ..isDistinct = true;
 
       final channel = await GroupChannel.createChannel(params);
@@ -68,19 +68,17 @@ class _ContactsScreenState extends State<ContactsScreen> {
     }
   }
 
-  // Grup modunda: seçilen tüm kullanıcılarla grup kanalı aç
   Future<void> _createGroupChat() async {
     if (_selectedUserIds.isEmpty) return;
 
     final groupName = await _askGroupName();
-    if (groupName == null) return; // kullanıcı iptal etti
+    if (groupName == null) return;
 
     setState(() => _creating = true);
     try {
       final params = GroupChannelCreateParams()
         ..userIds = _selectedUserIds.toList()
-        ..isDistinct =
-            false // grup sohbetlerde distinct kullanılmaz, her zaman yeni kanal
+        ..isDistinct = false
         ..name = groupName;
 
       final channel = await GroupChannel.createChannel(params);
@@ -106,23 +104,41 @@ class _ContactsScreenState extends State<ContactsScreen> {
     return showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         title: const Text('Grup Adı'),
         content: TextField(
           controller: controller,
           autofocus: true,
-          decoration: const InputDecoration(hintText: 'Örn: Proje Ekibi'),
+          decoration: InputDecoration(
+            hintText: 'Örn: Proje Ekibi',
+            filled: true,
+            fillColor: AppColors.background,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, null),
-            child: const Text('İptal'),
+            child: const Text(
+              'İptal',
+              style: TextStyle(color: AppColors.outline),
+            ),
           ),
           TextButton(
             onPressed: () {
               final name = controller.text.trim();
               Navigator.pop(context, name.isEmpty ? 'Yeni Grup' : name);
             },
-            child: const Text('Oluştur'),
+            child: const Text(
+              'Oluştur',
+              style: TextStyle(
+                color: AppColors.primary,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
           ),
         ],
       ),
@@ -144,11 +160,14 @@ class _ContactsScreenState extends State<ContactsScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(gradient: AppColors.primaryGradient),
+        ),
+        iconTheme: const IconThemeData(color: Colors.white),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.onBackground),
+          icon: const Icon(Icons.arrow_back),
           onPressed: () {
             if (_groupMode) {
-              // Grup modundan çık, kişi listesine geri dön
               setState(() {
                 _groupMode = false;
                 _selectedUserIds.clear();
@@ -161,7 +180,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
         title: Text(
           _groupMode ? '${_selectedUserIds.length} kişi seçildi' : 'Kişi Seçin',
           style: const TextStyle(
-            color: AppColors.onBackground,
+            color: Colors.white,
             fontWeight: FontWeight.w700,
             fontSize: 18,
           ),
@@ -173,16 +192,12 @@ class _ContactsScreenState extends State<ContactsScreen> {
               child: const Text(
                 'Oluştur',
                 style: TextStyle(
-                  color: AppColors.primary,
+                  color: Colors.white,
                   fontWeight: FontWeight.w700,
                 ),
               ),
             ),
         ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Container(color: AppColors.surfaceContainer, height: 1),
-        ),
       ),
       body: Stack(
         children: [
@@ -192,12 +207,15 @@ class _ContactsScreenState extends State<ContactsScreen> {
                 )
               : Column(
                   children: [
-                    // "Yeni Grup" seçeneği - sadece normal modda görünür
                     if (!_groupMode)
                       ListTile(
-                        leading: CircleAvatar(
-                          radius: 24,
-                          backgroundColor: AppColors.primary,
+                        leading: Container(
+                          width: 48,
+                          height: 48,
+                          decoration: const BoxDecoration(
+                            gradient: AppColors.vividGradient,
+                            shape: BoxShape.circle,
+                          ),
                           child: const Icon(
                             Icons.group_add,
                             color: Colors.white,
@@ -247,19 +265,32 @@ class _ContactsScreenState extends State<ContactsScreen> {
                                     horizontal: 16,
                                     vertical: 6,
                                   ),
-                                  leading: CircleAvatar(
-                                    radius: 24,
-                                    backgroundColor: AppColors.surfaceContainer,
-                                    backgroundImage: user.profileUrl.isNotEmpty
-                                        ? NetworkImage(user.profileUrl)
-                                        : null,
+                                  leading: Container(
+                                    width: 48,
+                                    height: 48,
+                                    decoration: BoxDecoration(
+                                      gradient: user.profileUrl.isEmpty
+                                          ? AppColors.primaryGradient
+                                          : null,
+                                      color: AppColors.surfaceContainer,
+                                      shape: BoxShape.circle,
+                                      image: user.profileUrl.isNotEmpty
+                                          ? DecorationImage(
+                                              image: NetworkImage(
+                                                user.profileUrl,
+                                              ),
+                                              fit: BoxFit.cover,
+                                            )
+                                          : null,
+                                    ),
+                                    alignment: Alignment.center,
                                     child: user.profileUrl.isEmpty
                                         ? Text(
                                             user.nickname.isNotEmpty
                                                 ? user.nickname[0].toUpperCase()
                                                 : '?',
                                             style: const TextStyle(
-                                              color: AppColors.primary,
+                                              color: Colors.white,
                                               fontWeight: FontWeight.w700,
                                             ),
                                           )
@@ -281,7 +312,6 @@ class _ContactsScreenState extends State<ContactsScreen> {
                                       fontSize: 13,
                                     ),
                                   ),
-                                  // Grup modundaysa checkbox göster, değilse hiçbir şey
                                   trailing: _groupMode
                                       ? Icon(
                                           isSelected
@@ -311,7 +341,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
             Container(
               color: Colors.black26,
               child: const Center(
-                child: CircularProgressIndicator(color: AppColors.primary),
+                child: CircularProgressIndicator(color: Colors.white),
               ),
             ),
         ],
